@@ -25,6 +25,7 @@ interface InspectorPanelProps {
   opaqueBounds: { x: number; y: number; width: number; height: number } | null;
   onUpscaleFactor: (factor: number) => void;
   onResizeExact: (w: number, h: number) => void;
+  onCleanItemEdges: () => void;
   onApplyTint: (hex: string, strength: number) => void;
   hasStamp: boolean;
   stampFrameCount: number;
@@ -64,6 +65,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   opaqueBounds,
   onUpscaleFactor,
   onResizeExact,
+  onCleanItemEdges,
   onApplyTint,
   hasStamp,
   stampFrameCount,
@@ -239,6 +241,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             Đặt px
           </button>
         </div>
+
+        <button
+          onClick={onCleanItemEdges}
+          disabled={hasStamp}
+          title="Xóa các pixel bán trong suốt ở viền ảnh (Alpha Cutout) để khi cầm Item 3D trong Minecraft không bị lỗi viền mờ/răng cưa"
+          className="w-full py-1.5 px-2 rounded bg-zinc-800 hover:bg-emerald-600/30 border border-zinc-700 hover:border-emerald-500/50 disabled:opacity-40 text-[11px] font-medium text-zinc-200 transition cursor-pointer"
+        >
+          Làm sạch viền Item 3D (chống lỗi viền)
+        </button>
       </section>
 
       {/* 2. Stamp / Composite Character Art */}

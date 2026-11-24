@@ -11,6 +11,7 @@ import {
   RawImage,
   StampTransform,
   applyPanelTintBuffer,
+  cleanItemAlphaCutout,
   cloneRawImage,
   compositeStampOnBedTop,
   compositeStampOnRaw,
@@ -853,6 +854,9 @@ export const App: React.FC = () => {
           opaqueBounds={opaqueBounds}
           onUpscaleFactor={handleUpscaleFactor}
           onResizeExact={handleResizeExact}
+          onCleanItemEdges={() => {
+            if (baseImage) pushEdit(cleanItemAlphaCutout(baseImage, 128));
+          }}
           onApplyTint={(hex, strength) => {
             if (baseImage) pushEdit(applyPanelTintBuffer(baseImage, hex, strength));
           }}

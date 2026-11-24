@@ -35,6 +35,18 @@ export function cloneRawImage(img: RawImage): RawImage {
 }
 
 /**
+ * Snaps semi-transparent anti-aliased edges to pure opaque (255) or pure transparent (0).
+ * Fixes Minecraft's 3D item extruder glitchy/flickering translucent side edges on HD items.
+ */
+export function cleanItemAlphaCutout(src: RawImage, threshold: number = 128): RawImage {
+  const out = new Uint8ClampedArray(src.data);
+  for (let i = 3; i < out.length; i += 4) {
+    out[i] = out[i] >= threshold ? 255 : 0;
+  }
+  return { width: src.width, height: src.height, data: out };
+}
+
+/**
  * Pure nearest-neighbor upscaler/resizer supporting high resolutions (e.g. 2048x2048 or 4096x4096).
  */
 export function upscaleNearestBuffer(src: RawImage, scale: number): RawImage {
