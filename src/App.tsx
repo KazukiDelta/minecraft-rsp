@@ -26,6 +26,7 @@ import {
 } from './lib/canvasEngine';
 import {
   cacheClearAll,
+  cacheDeleteExtraFile,
   cacheDeleteTexture,
   cacheLoadAllExtraFiles,
   cacheLoadAllTextures,
@@ -42,12 +43,15 @@ import {
   parseAnimationMcmetaBytes,
 } from './lib/animationEngine';
 import { compositeStampOnSkybox3x2 } from './lib/skyboxProjector';
-import { AssetSidebar } from './components/AssetSidebar';
+import { AssetSidebar, WorkspaceMode } from './components/AssetSidebar';
 import { EditorCanvas, EditorTool } from './components/EditorCanvas';
 import { InspectorPanel } from './components/InspectorPanel';
 import { ExportModal } from './components/ExportModal';
 import { MergePackModal } from './components/MergePackModal';
 import { Preview3DModal } from './components/Preview3DModal';
+import { JsonEditorView } from './components/JsonEditorView';
+import { SoundStudioView } from './components/SoundStudioView';
+import { isAudioFilePath, isTextEditablePath } from './lib/audioEngine';
 
 interface TextureHistory {
   past: RawImage[];
@@ -59,6 +63,8 @@ export const App: React.FC = () => {
   const [entries, setEntries] = useState<TextureEntry[]>([]);
   const [loadingArchive, setLoadingArchive] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<TextureEntry | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('texture');
+  const [selectedExtraPath, setSelectedExtraPath] = useState<string | null>(null);
 
   // Per-texture edit history stored by archive path
   const [histories, setHistories] = useState<Map<string, TextureHistory>>(new Map());
@@ -182,6 +188,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSelectEntry = async (entry: TextureEntry) => {
+    setWorkspaceMode('texture');
     setSelectedEntry(entry);
     setRawStampSource(null);
     if (!histories.has(entry.path)) {
@@ -192,6 +199,80 @@ export const App: React.FC = () => {
         return next;
       });
     }
+  };
+
+  const handleSelectExtraFile = (path: string, mode: 'json' | 'audio') => {
+    setWorkspaceMode(mode);
+    setSelectedExtraPath(path);
+  };
+
+  const handleSwitchWorkspaceMode = (mode: WorkspaceMode) => {
+    setWorkspaceMode(mode);
+    if (mode === 'json') {
+      if (!selectedExtraPath || !isTextEditablePath(selectedExtraPath) || !extraFiles.has(selectedExtraPath)) {
+        const firstJson = Array.from(extraFiles.keys()).filter(isTextEditablePath).sort()[0] || null;
+        setSelectedExtraPath(firstJson);
+      }
+    } else if (mode === 'audio') {
+      if (!selectedExtraPath || !isAudioFilePath(selectedExtraPath) || !extraFiles.has(selectedExtraPath)) {
+        const firstAudio = Array.from(extraFiles.keys()).filter(isAudioFilePath).sort()[0] || null;
+        setSelectedExtraPath(firstAudio);
+      }
+    }
+  };
+
+  const handleSaveJsonFile = async (path: string, content: string) => {
+    const cleanPath = path.replace(/^\/+/, '').replace(/\\/g, '/');
+    const bytes = new TextEncoder().encode(content);
+    setExtraFiles((prev) => {
+      const next = new Map(prev);
+      next.set(cleanPath, bytes);
+      return next;
+    });
+    await cacheSaveExtraFile(cleanPath, bytes);
+    setSelectedExtraPath(cleanPath);
+    setWorkspaceMode('json');
+    setCacheStatus(`Đã lưu ${cleanPath.split('/').pop()}`);
+  };
+
+  const handleDeleteExtraFile = async (path: string) => {
+    await cacheDeleteExtraFile(path);
+    setExtraFiles((prev) => {
+      const next = new Map(prev);
+      next.delete(path);
+      return next;
+    });
+    if (selectedExtraPath === path) {
+      setSelectedExtraPath(null);
+    }
+    setCacheStatus(`Đã xóa ${path.split('/').pop()}`);
+  };
+
+  const handleSaveSoundFile = async (opts: {
+    archivePath: string;
+    oggBytes: Uint8Array;
+    updatedSoundsJson?: string;
+    oldPathToDelete?: string;
+  }) => {
+    const nextExtra = new Map(extraFiles);
+    if (opts.oldPathToDelete && opts.oldPathToDelete !== opts.archivePath) {
+      nextExtra.delete(opts.oldPathToDelete);
+      await cacheDeleteExtraFile(opts.oldPathToDelete);
+    }
+    nextExtra.set(opts.archivePath, opts.oggBytes);
+    await cacheSaveExtraFile(opts.archivePath, opts.oggBytes);
+
+    if (opts.updatedSoundsJson) {
+      const soundsPath = 'assets/minecraft/sounds.json';
+      const soundsBytes = new TextEncoder().encode(opts.updatedSoundsJson);
+      nextExtra.set(soundsPath, soundsBytes);
+      await cacheSaveExtraFile(soundsPath, soundsBytes);
+    }
+
+    setExtraFiles(nextExtra);
+    setSelectedExtraPath(opts.archivePath);
+    setWorkspaceMode('audio');
+    setCacheStatus(`Đã lưu âm thanh ${opts.archivePath.split('/').pop()}`);
   };
 
   const currentHistory = selectedEntry ? histories.get(selectedEntry.path) || null : null;
@@ -296,6 +377,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (workspaceMode !== 'texture') return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
@@ -309,7 +391,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, workspaceMode]);
 
   const handleResetVanilla = async () => {
     if (!selectedEntry) return;
@@ -766,7 +848,7 @@ export const App: React.FC = () => {
               MC Resource Pack Studio
             </h1>
             <p className="text-[11px] text-zinc-400">
-              Upscale 4096px • Stamp & Tách Nền • Bầu Trời Skybox • Gộp Pack
+              Upscale 4096px • Stamp & Skybox • JSON Editor • Sound Studio (.ogg)
             </p>
           </div>
         </div>
@@ -776,7 +858,7 @@ export const App: React.FC = () => {
           <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-zinc-400 bg-zinc-950 border border-zinc-800 px-2.5 py-1 rounded-md">
             <Database className="w-3.5 h-3.5 text-emerald-400" />
             <span>{cacheStatus}</span>
-            {modifiedPaths.size > 0 && (
+            {(modifiedPaths.size > 0 || extraFiles.size > 0) && (
               <button
                 onClick={handleClearCache}
                 title="Xóa toàn bộ cache đã lưu và làm mới từ đầu"
@@ -789,7 +871,7 @@ export const App: React.FC = () => {
 
           <button
             onClick={() => setPreview3DOpen(true)}
-            disabled={!displayImage}
+            disabled={workspaceMode !== 'texture' || !displayImage}
             className="px-3 py-2 rounded-lg bg-sky-600/20 hover:bg-sky-600/35 border border-sky-500/40 text-sky-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
           >
             <Box className="w-4 h-4 text-sky-400" />
@@ -809,7 +891,7 @@ export const App: React.FC = () => {
             className="px-3.5 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-pink-600/20 transition cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            <span>Xuất Pack .zip ({modifiedPaths.size})</span>
+            <span>Xuất Pack .zip ({modifiedPaths.size + extraFiles.size})</span>
           </button>
         </div>
       </header>
@@ -818,79 +900,106 @@ export const App: React.FC = () => {
       <div className="flex-1 flex min-h-0">
         <AssetSidebar
           entries={entries}
+          extraFiles={extraFiles}
+          workspaceMode={workspaceMode}
           selectedPath={selectedEntry?.path || null}
+          selectedExtraPath={selectedExtraPath}
           modifiedPaths={modifiedPaths}
-          onSelect={handleSelectEntry}
+          onSelectTexture={handleSelectEntry}
+          onSelectExtraFile={handleSelectExtraFile}
+          onSwitchWorkspaceMode={handleSwitchWorkspaceMode}
           onDeleteModified={handleDeleteModified}
+          onDeleteExtraFile={(p) => void handleDeleteExtraFile(p)}
           onImportTemplatePack={handleImportTemplatePack}
           onCreateSkybox={handleCreateSkybox}
           loadingArchive={loadingArchive}
         />
 
-        <EditorCanvas
-          displayImage={displayImage}
-          activeStamp={processedStamp}
-          stampTransform={stampTransform}
-          onUpdateStampTransform={(patch) =>
-            setStampTransform((prev) => ({ ...prev, ...patch }))
-          }
-          tool={tool}
-          onSelectTool={setTool}
-          brushColor={brushColor}
-          onPickColor={setBrushColor}
-          brushSize={brushSize}
-          onBrushSizeChange={setBrushSize}
-          onCommitPixelEdit={pushEdit}
-          canUndo={!!currentHistory && currentHistory.past.length > 0}
-          canRedo={!!currentHistory && currentHistory.future.length > 0}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          onResetVanilla={handleResetVanilla}
-          textureName={selectedEntry?.path || ''}
-        />
+        {workspaceMode === 'json' ? (
+          <JsonEditorView
+            selectedPath={selectedExtraPath}
+            fileBytes={selectedExtraPath ? extraFiles.get(selectedExtraPath) || null : null}
+            onSaveFile={handleSaveJsonFile}
+            onDeleteFile={handleDeleteExtraFile}
+            onCreateOrUploadFile={handleSaveJsonFile}
+          />
+        ) : workspaceMode === 'audio' ? (
+          <SoundStudioView
+            selectedPath={selectedExtraPath}
+            fileBytes={selectedExtraPath ? extraFiles.get(selectedExtraPath) || null : null}
+            soundsJsonBytes={extraFiles.get('assets/minecraft/sounds.json') || null}
+            onSaveSound={handleSaveSoundFile}
+            onDeleteFile={handleDeleteExtraFile}
+          />
+        ) : (
+          <>
+            <EditorCanvas
+              displayImage={displayImage}
+              activeStamp={processedStamp}
+              stampTransform={stampTransform}
+              onUpdateStampTransform={(patch) =>
+                setStampTransform((prev) => ({ ...prev, ...patch }))
+              }
+              tool={tool}
+              onSelectTool={setTool}
+              brushColor={brushColor}
+              onPickColor={setBrushColor}
+              brushSize={brushSize}
+              onBrushSizeChange={setBrushSize}
+              onCommitPixelEdit={pushEdit}
+              canUndo={!!currentHistory && currentHistory.past.length > 0}
+              canRedo={!!currentHistory && currentHistory.future.length > 0}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              onResetVanilla={handleResetVanilla}
+              textureName={selectedEntry?.path || ''}
+            />
 
-        <InspectorPanel
-          baseImage={baseImage}
-          opaqueBounds={opaqueBounds}
-          onUpscaleFactor={handleUpscaleFactor}
-          onResizeExact={handleResizeExact}
-          onCleanItemEdges={() => {
-            if (baseImage) pushEdit(cleanItemAlphaCutout(baseImage, 128));
-          }}
-          onApplyTint={(hex, strength) => {
-            if (baseImage) pushEdit(applyPanelTintBuffer(baseImage, hex, strength));
-          }}
-          hasStamp={!!rawStampSource}
-          stampFrameCount={rawStampFrames.length}
-          stampDurationTicks={stampDurationTicks}
-          onChangeStampDurationTicks={setStampDurationTicks}
-          onUploadStampFile={handleUploadStampFile}
-          removeBgEnabled={removeBgEnabled}
-          onToggleRemoveBg={setRemoveBgEnabled}
-          removeBgMode={removeBgMode}
-          onChangeRemoveBgMode={setRemoveBgMode}
-          removeBgTolerance={removeBgTolerance}
-          onChangeRemoveBgTolerance={setRemoveBgTolerance}
-          stampTransform={stampTransform}
-          onUpdateStampTransform={(patch) =>
-            setStampTransform((prev) => ({ ...prev, ...patch }))
-          }
-          onFitStampToPanel={handleFitStampToPanel}
-          onCenterStamp={handleCenterStamp}
-          onApplyStamp={handleApplyStamp}
-          onCancelStamp={() => setRawStampSource(null)}
-          existingAnimSettings={existingAnimSettings}
-          onApplyAnimation={handleApplyAnimation}
-          isSkyTexture={selectedEntry?.category === 'sky'}
-          isBedTexture={isBedTexture}
-          onApplyProjectedSkybox={pushEdit}
-        />
+            <InspectorPanel
+              baseImage={baseImage}
+              opaqueBounds={opaqueBounds}
+              onUpscaleFactor={handleUpscaleFactor}
+              onResizeExact={handleResizeExact}
+              onCleanItemEdges={() => {
+                if (baseImage) pushEdit(cleanItemAlphaCutout(baseImage, 128));
+              }}
+              onApplyTint={(hex, strength) => {
+                if (baseImage) pushEdit(applyPanelTintBuffer(baseImage, hex, strength));
+              }}
+              hasStamp={!!rawStampSource}
+              stampFrameCount={rawStampFrames.length}
+              stampDurationTicks={stampDurationTicks}
+              onChangeStampDurationTicks={setStampDurationTicks}
+              onUploadStampFile={handleUploadStampFile}
+              removeBgEnabled={removeBgEnabled}
+              onToggleRemoveBg={setRemoveBgEnabled}
+              removeBgMode={removeBgMode}
+              onChangeRemoveBgMode={setRemoveBgMode}
+              removeBgTolerance={removeBgTolerance}
+              onChangeRemoveBgTolerance={setRemoveBgTolerance}
+              stampTransform={stampTransform}
+              onUpdateStampTransform={(patch) =>
+                setStampTransform((prev) => ({ ...prev, ...patch }))
+              }
+              onFitStampToPanel={handleFitStampToPanel}
+              onCenterStamp={handleCenterStamp}
+              onApplyStamp={handleApplyStamp}
+              onCancelStamp={() => setRawStampSource(null)}
+              existingAnimSettings={existingAnimSettings}
+              onApplyAnimation={handleApplyAnimation}
+              isSkyTexture={selectedEntry?.category === 'sky'}
+              isBedTexture={isBedTexture}
+              onApplyProjectedSkybox={pushEdit}
+            />
+          </>
+        )}
       </div>
 
       <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         modifiedPaths={Array.from(modifiedPaths)}
+        extraFilePaths={Array.from(extraFiles.keys()).sort()}
         hasSkyJsonConfigs={hasSkyJsonConfigs}
         onExport={handleExportZip}
       />

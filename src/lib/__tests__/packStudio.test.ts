@@ -9,6 +9,13 @@ import {
 } from '../canvasEngine';
 import { MC_VERSION_PRESETS } from '../mcVersions';
 import { buildResourcePackZip } from '../packExporter';
+import {
+  archivePathToSoundResource,
+  encodePcmToOggVorbis,
+  isOggBytes,
+  normalizeSoundArchivePath,
+  upsertSoundsJson,
+} from '../audioEngine';
 
 describe('canvasEngine', () => {
   it('upscales exact nearest-neighbor dimensions up to high pixel counts', () => {
@@ -120,5 +127,47 @@ describe('packExporter', () => {
     expect(mcmeta.pack.pack_format).toBe(97);
     expect(mcmeta.pack.min_format).toBe(97);
     expect(mcmeta.pack.max_format).toBe(97);
+  });
+});
+
+describe('audioEngine', () => {
+  it('normalizes sound archive paths to lowercase .ogg under assets/minecraft/sounds', () => {
+    expect(normalizeSoundArchivePath('My Custom/Click Sound.mp3')).toBe(
+      'assets/minecraft/sounds/my_custom/click_sound.ogg'
+    );
+    expect(archivePathToSoundResource('assets/minecraft/sounds/random/click.ogg')).toBe(
+      'random/click'
+    );
+  });
+
+  it('upserts entries cleanly in sounds.json', () => {
+    const out = upsertSoundsJson(null, 'ui.button.click', 'random/click', { replace: true });
+    const parsed = JSON.parse(out);
+    expect(parsed['ui.button.click']).toEqual({
+      replace: true,
+      sounds: ['random/click'],
+    });
+
+    const out2 = upsertSoundsJson(out, 'music.menu', 'music/menu/menu1', {
+      replace: true,
+      stream: true,
+    });
+    const parsed2 = JSON.parse(out2);
+    expect(parsed2['ui.button.click']).toBeDefined();
+    expect(parsed2['music.menu'].sounds[0]).toEqual({
+      name: 'music/menu/menu1',
+      stream: true,
+    });
+  });
+
+  it('encodes PCM audio into valid Ogg Vorbis bytes with OggS magic header', async () => {
+    const sampleRate = 44100;
+    const pcm = new Float32Array(sampleRate / 10); // 0.1s sine wave
+    for (let i = 0; i < pcm.length; i++) {
+      pcm[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.5;
+    }
+    const ogg = await encodePcmToOggVorbis([pcm], sampleRate, 4);
+    expect(ogg.length).toBeGreaterThan(100);
+    expect(isOggBytes(ogg)).toBe(true);
   });
 });

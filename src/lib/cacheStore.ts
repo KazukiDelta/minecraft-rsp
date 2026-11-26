@@ -70,6 +70,16 @@ export async function cacheSaveExtraFile(path: string, bytes: Uint8Array): Promi
   });
 }
 
+export async function cacheDeleteExtraFile(path: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_EXTRA, 'readwrite');
+    tx.objectStore(STORE_EXTRA).delete(path);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function cacheLoadAllExtraFiles(): Promise<Map<string, Uint8Array>> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

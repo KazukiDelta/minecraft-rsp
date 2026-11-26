@@ -7,6 +7,7 @@ interface ExportModalProps {
   open: boolean;
   onClose: () => void;
   modifiedPaths: string[];
+  extraFilePaths: string[];
   hasSkyJsonConfigs: boolean;
   onExport: (opts: {
     packName: string;
@@ -21,6 +22,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   open,
   onClose,
   modifiedPaths,
+  extraFilePaths,
   hasSkyJsonConfigs,
   onExport,
 }) => {
@@ -174,17 +176,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
           <div className="bg-zinc-950 border border-zinc-800 rounded-md p-3">
             <div className="text-zinc-300 font-medium mb-1.5">
-              Texture đã chỉnh sửa ({modifiedPaths.length} file):
+              File trong Pack ({modifiedPaths.length} texture • {extraFilePaths.length} JSON/Âm thanh/Config):
             </div>
-            {modifiedPaths.length === 0 ? (
+            {modifiedPaths.length === 0 && extraFilePaths.length === 0 ? (
               <p className="text-amber-400">
-                Bạn chưa chỉnh sửa hoặc bấm "Áp dụng Stamp" lên texture nào. Pack xuất ra sẽ chỉ có pack.mcmeta và pack.png.
+                Bạn chưa chỉnh sửa texture, JSON hoặc âm thanh nào. Pack xuất ra sẽ chỉ có pack.mcmeta và pack.png.
               </p>
             ) : (
               <ul className="max-h-32 overflow-y-auto space-y-1 text-[11px] font-mono text-zinc-400">
                 {modifiedPaths.map((p) => (
                   <li key={p} className="truncate">
                     • {p.replace('assets/minecraft/textures/', '')}
+                  </li>
+                ))}
+                {extraFilePaths.map((p) => (
+                  <li key={p} className="truncate text-emerald-400/90">
+                    • {p.replace(/^assets\//, '')}
                   </li>
                 ))}
               </ul>
