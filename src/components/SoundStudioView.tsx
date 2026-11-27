@@ -110,7 +110,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
         setEditOpts({
           ...DEFAULT_EDIT,
           trimStart: 0,
-          trimEnd: Number(buf.duration.toFixed(2)),
+          trimEnd: buf.duration,
           mono: buf.numberOfChannels === 1,
         });
         setStreamFlag(buf.duration > 10);
@@ -245,7 +245,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
       setEditOpts({
         ...DEFAULT_EDIT,
         trimStart: 0,
-        trimEnd: Number(buf.duration.toFixed(2)),
+        trimEnd: buf.duration,
         mono: preset ? preset.recommendMono : buf.numberOfChannels === 1,
       });
       setStreamFlag(buf.duration > 10);
@@ -396,7 +396,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
                   updateEdit({
                     ...DEFAULT_EDIT,
                     trimStart: 0,
-                    trimEnd: Number(sourceBuffer.duration.toFixed(2)),
+                    trimEnd: sourceBuffer.duration,
                     mono: sourceBuffer.numberOfChannels === 1,
                   })
                 }
@@ -532,8 +532,8 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
                   <input
                     type="range"
                     min={0}
-                    max={Number(sourceBuffer.duration.toFixed(2))}
-                    step={0.02}
+                    max={sourceBuffer.duration}
+                    step={0.01}
                     value={editOpts.trimStart}
                     onChange={(e) =>
                       updateEdit({
@@ -551,8 +551,8 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
                       type="number"
                       step={0.05}
                       min={editOpts.trimStart + 0.05}
-                      max={Number(sourceBuffer.duration.toFixed(2))}
-                      value={editOpts.trimEnd}
+                      max={sourceBuffer.duration}
+                      value={Number(editOpts.trimEnd.toFixed(2))}
                       onChange={(e) =>
                         updateEdit({
                           trimEnd: Math.min(
@@ -567,8 +567,8 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
                   <input
                     type="range"
                     min={0.05}
-                    max={Number(sourceBuffer.duration.toFixed(2))}
-                    step={0.02}
+                    max={sourceBuffer.duration}
+                    step={0.01}
                     value={editOpts.trimEnd}
                     onChange={(e) =>
                       updateEdit({
@@ -801,12 +801,12 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
             />
           </label>
 
-          <div className="max-w-xl w-full bg-zinc-900/70 border border-zinc-800 rounded-xl p-3 text-left">
-            <div className="text-[11px] font-medium text-zinc-300 mb-2">
-              Hoặc chọn nhanh một âm thanh Vanilla để thay thế:
+          <div className="max-w-3xl w-full bg-zinc-900/70 border border-zinc-800 rounded-xl p-4 text-left">
+            <div className="text-[11px] font-medium text-zinc-300 mb-2.5">
+              Hoặc chọn nhanh âm thanh Vanilla để thay thế ({VANILLA_SOUND_PRESETS.length} mẫu):
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {VANILLA_SOUND_PRESETS.slice(0, 9).map((preset) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 max-h-60 overflow-y-auto pr-1">
+              {VANILLA_SOUND_PRESETS.map((preset) => (
                 <label
                   key={preset.path}
                   className="px-2.5 py-1.5 rounded bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 cursor-pointer truncate transition"

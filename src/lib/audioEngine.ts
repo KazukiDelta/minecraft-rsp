@@ -149,6 +149,143 @@ export const VANILLA_SOUND_PRESETS: SoundPreset[] = [
     eventId: 'custom.my_sound',
     recommendMono: true,
   },
+  // Block & Cửa
+  {
+    label: 'Mở cửa gỗ (Door Open)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/random/door_open.ogg',
+    eventId: 'block.wooden_door.open',
+    recommendMono: true,
+  },
+  {
+    label: 'Đóng cửa gỗ (Door Close)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/random/door_close.ogg',
+    eventId: 'block.wooden_door.close',
+    recommendMono: true,
+  },
+  {
+    label: 'Đặt / Đập kính vỡ (Glass Break)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/random/glass1.ogg',
+    eventId: 'block.glass.break',
+    recommendMono: true,
+  },
+  {
+    label: 'Đập khối đá (Stone Dig)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/dig/stone1.ogg',
+    eventId: 'block.stone.break',
+    recommendMono: true,
+  },
+  {
+    label: 'Đập khối gỗ (Wood Dig)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/dig/wood1.ogg',
+    eventId: 'block.wood.break',
+    recommendMono: true,
+  },
+  {
+    label: 'Bước chân trên cỏ (Grass Step)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/step/grass1.ogg',
+    eventId: 'block.grass.step',
+    recommendMono: true,
+  },
+  {
+    label: 'Cổng Nether (Portal Travel)',
+    group: 'Block & Cửa',
+    path: 'assets/minecraft/sounds/portal/travel.ogg',
+    eventId: 'block.portal.travel',
+    recommendMono: false,
+  },
+  // Mob & Thú cưng
+  {
+    label: 'Mèo kêu (Cat Meow)',
+    group: 'Mob',
+    path: 'assets/minecraft/sounds/mob/cat/meow1.ogg',
+    eventId: 'entity.cat.ambient',
+    recommendMono: true,
+  },
+  {
+    label: 'Sói sủa (Wolf Bark)',
+    group: 'Mob',
+    path: 'assets/minecraft/sounds/mob/wolf/bark1.ogg',
+    eventId: 'entity.wolf.ambient',
+    recommendMono: true,
+  },
+  {
+    label: 'Creeper xì khói (Creeper Fuse)',
+    group: 'Mob',
+    path: 'assets/minecraft/sounds/random/fuse.ogg',
+    eventId: 'entity.creeper.primed',
+    recommendMono: true,
+  },
+  {
+    label: 'Enderman dịch chuyển (Teleport)',
+    group: 'Mob',
+    path: 'assets/minecraft/sounds/mob/endermen/portal.ogg',
+    eventId: 'entity.enderman.teleport',
+    recommendMono: true,
+  },
+  {
+    label: 'Dân làng (Villager Yes)',
+    group: 'Mob',
+    path: 'assets/minecraft/sounds/mob/villager/yes1.ogg',
+    eventId: 'entity.villager.yes',
+    recommendMono: true,
+  },
+  // Thêm Nhạc & Đĩa nhạc
+  {
+    label: 'Nhạc nền Overworld (Calm 1)',
+    group: 'Nhạc & Đĩa nhạc',
+    path: 'assets/minecraft/sounds/music/game/calm1.ogg',
+    eventId: 'music.game',
+    recommendMono: false,
+  },
+  {
+    label: 'Nhạc nền Creative (Creative 1)',
+    group: 'Nhạc & Đĩa nhạc',
+    path: 'assets/minecraft/sounds/music/game/creative/creative1.ogg',
+    eventId: 'music.creative',
+    recommendMono: false,
+  },
+  {
+    label: 'Đĩa nhạc Otherside (records/otherside)',
+    group: 'Nhạc & Đĩa nhạc',
+    path: 'assets/minecraft/sounds/records/otherside.ogg',
+    eventId: 'music_disc.otherside',
+    recommendMono: false,
+  },
+  {
+    label: 'Đĩa nhạc Mellohi (records/mellohi)',
+    group: 'Nhạc & Đĩa nhạc',
+    path: 'assets/minecraft/sounds/records/mellohi.ogg',
+    eventId: 'music_disc.mellohi',
+    recommendMono: false,
+  },
+  {
+    label: 'Đĩa nhạc Ward (records/ward)',
+    group: 'Nhạc & Đĩa nhạc',
+    path: 'assets/minecraft/sounds/records/ward.ogg',
+    eventId: 'music_disc.ward',
+    recommendMono: false,
+  },
+  // Thời tiết & Môi trường
+  {
+    label: 'Tiếng sấm sét (Thunder 1)',
+    group: 'Môi trường',
+    path: 'assets/minecraft/sounds/ambient/weather/thunder1.ogg',
+    eventId: 'entity.lightning_bolt.thunder',
+    recommendMono: false,
+  },
+  {
+    label: 'Nhảy xuống nước (Splash)',
+    group: 'Môi trường',
+    path: 'assets/minecraft/sounds/random/splash.ogg',
+    eventId: 'entity.generic.splash',
+    recommendMono: true,
+  },
 ];
 
 export interface AudioEditOptions {
@@ -230,7 +367,8 @@ export async function processAudioBuffer(
   opts: AudioEditOptions
 ): Promise<AudioBuffer> {
   const start = Math.max(0, Math.min(opts.trimStart, source.duration));
-  const end = Math.max(start + 0.02, Math.min(opts.trimEnd, source.duration));
+  const rawEnd = opts.trimEnd >= source.duration - 0.015 ? source.duration : opts.trimEnd;
+  const end = Math.max(start + 0.02, Math.min(rawEnd, source.duration));
   const clipDuration = Math.max(0.02, end - start);
   const rate = Math.max(0.25, Math.min(4, opts.playbackRate || 1));
   const outDuration = Math.max(0.02, clipDuration / rate);
