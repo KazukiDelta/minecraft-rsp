@@ -1,4 +1,5 @@
 import { createOggEncoder } from 'wasm-media-encoders';
+export { VANILLA_SOUND_PRESETS, type SoundPreset } from './vanillaSounds';
 
 export interface SoundPreset {
   label: string;

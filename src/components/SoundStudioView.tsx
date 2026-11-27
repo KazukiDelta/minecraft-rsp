@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Loader2,
   Sliders,
+  Search,
 } from 'lucide-react';
 import {
   AudioEditOptions,
@@ -69,6 +70,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
   const [updateSoundsJson, setUpdateSoundsJson] = useState(true);
   const [soundEventId, setSoundEventId] = useState('ui.button.click');
   const [streamFlag, setStreamFlag] = useState(false);
+  const [presetQuery, setPresetQuery] = useState('');
 
   // Preview & saving states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -750,8 +752,18 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
 
               <div>
                 <label className="block text-zinc-400 mb-1">
-                  Chọn nhanh âm thanh Vanilla muốn thay thế
+                  Tìm & chọn nhanh âm thanh Vanilla ({VANILLA_SOUND_PRESETS.length} mẫu)
                 </label>
+                <div className="relative mb-1.5">
+                  <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={presetQuery}
+                    onChange={(e) => setPresetQuery(e.target.value)}
+                    placeholder="Tìm: totem, crit, bow, cat, pigstep, door..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-8 pr-2.5 py-1 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                  />
+                </div>
                 <select
                   value={
                     VANILLA_SOUND_PRESETS.some((p) => p.path === targetPath) ? targetPath : ''
@@ -762,8 +774,17 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-100 focus:outline-none focus:border-pink-500"
                 >
                   <option value="">-- Tự nhập đường dẫn bên dưới --</option>
-                  {VANILLA_SOUND_PRESETS.map((p) => (
-                    <option key={p.path} value={p.path}>
+                  {VANILLA_SOUND_PRESETS.filter((p) => {
+                    const q = presetQuery.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      p.label.toLowerCase().includes(q) ||
+                      p.eventId.toLowerCase().includes(q) ||
+                      p.path.toLowerCase().includes(q) ||
+                      p.group.toLowerCase().includes(q)
+                    );
+                  }).map((p) => (
+                    <option key={p.path + p.eventId} value={p.path}>
                       [{p.group}] {p.label}
                     </option>
                   ))}
@@ -873,16 +894,37 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
             />
           </label>
 
-          <div className="max-w-3xl w-full bg-zinc-900/70 border border-zinc-800 rounded-xl p-4 text-left">
-            <div className="text-[11px] font-medium text-zinc-300 mb-2.5">
-              Hoặc chọn nhanh âm thanh Vanilla để thay thế ({VANILLA_SOUND_PRESETS.length} mẫu):
+          <div className="max-w-4xl w-full bg-zinc-900/70 border border-zinc-800 rounded-xl p-4 text-left space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] font-medium text-zinc-300">
+                Hoặc chọn nhanh âm thanh Vanilla để thay thế ({VANILLA_SOUND_PRESETS.length} mẫu):
+              </div>
+              <div className="relative w-64">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={presetQuery}
+                  onChange={(e) => setPresetQuery(e.target.value)}
+                  placeholder="Tìm: totem, crit, bow, pigstep..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-8 pr-2.5 py-1 text-[11px] text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 max-h-60 overflow-y-auto pr-1">
-              {VANILLA_SOUND_PRESETS.map((preset) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 max-h-64 overflow-y-auto pr-1">
+              {VANILLA_SOUND_PRESETS.filter((p) => {
+                const q = presetQuery.trim().toLowerCase();
+                if (!q) return true;
+                return (
+                  p.label.toLowerCase().includes(q) ||
+                  p.eventId.toLowerCase().includes(q) ||
+                  p.path.toLowerCase().includes(q) ||
+                  p.group.toLowerCase().includes(q)
+                );
+              }).map((preset) => (
                 <label
-                  key={preset.path}
+                  key={preset.path + preset.eventId}
                   className="px-2.5 py-1.5 rounded bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 cursor-pointer truncate transition"
-                  title={`Upload file âm thanh để thay cho ${preset.path}`}
+                  title={`[${preset.group}] ${preset.eventId} — ${preset.path}`}
                 >
                   + {preset.label.split(' (')[0]}
                   <input
