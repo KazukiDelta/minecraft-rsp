@@ -14,7 +14,7 @@ export const VANILLA_SOUND_PRESETS: SoundPreset[] = [
   { label: 'Click nút UI (Button Click)', group: 'UI', path: 'assets/minecraft/sounds/random/click.ogg', eventId: 'ui.button.click', recommendMono: true },
   { label: 'Thông báo thành tựu (Toast Challenge)', group: 'UI', path: 'assets/minecraft/sounds/ui/toast/challenge_complete.ogg', eventId: 'ui.toast.challenge_complete', recommendMono: false },
   { label: 'Mở bảng / Toast In', group: 'UI', path: 'assets/minecraft/sounds/ui/toast/in.ogg', eventId: 'ui.toast.in', recommendMono: false },
-  { label: 'Đóng bảng / Toast Out', group: 'assets/minecraft/sounds/ui/toast/out.ogg', eventId: 'ui.toast.out', recommendMono: false },
+  { label: 'Đóng bảng / Toast Out', group: 'UI', path: 'assets/minecraft/sounds/ui/toast/out.ogg', eventId: 'ui.toast.out', recommendMono: false },
   { label: 'Vẽ bản đồ (Cartography Table)', group: 'UI', path: 'assets/minecraft/sounds/ui/cartography_table/drawmap1.ogg', eventId: 'ui.cartography_table.take_result', recommendMono: true },
   { label: 'Cắt đá (Stonecutter)', group: 'UI', path: 'assets/minecraft/sounds/ui/stonecutter/cut1.ogg', eventId: 'ui.stonecutter.take_result', recommendMono: true },
   { label: 'Dệt vải (Loom)', group: 'UI', path: 'assets/minecraft/sounds/ui/loom/select_pattern1.ogg', eventId: 'ui.loom.select_pattern', recommendMono: true },
