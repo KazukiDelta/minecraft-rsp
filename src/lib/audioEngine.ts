@@ -381,7 +381,7 @@ export async function processAudioBuffer(
   bufSource.buffer = source;
   bufSource.playbackRate.value = rate;
   bufSource.connect(offline.destination);
-  bufSource.start(0, start, clipDuration);
+  bufSource.start(0, start);
 
   const rendered = await offline.startRendering();
 
