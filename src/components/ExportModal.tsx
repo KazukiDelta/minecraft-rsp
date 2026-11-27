@@ -15,6 +15,7 @@ interface ExportModalProps {
     versionPreset: McVersionPreset;
     packIconBlob: Blob | null;
     fixSkyBlendReplace: boolean;
+    skipUnchangedVanilla: boolean;
   }) => Promise<void>;
 }
 
@@ -32,6 +33,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [packIconBlob, setPackIconBlob] = useState<Blob | null>(null);
   const [packIconPreview, setPackIconPreview] = useState<string | null>(null);
   const [fixSkyBlendReplace, setFixSkyBlendReplace] = useState<boolean>(true);
+  const [skipUnchangedVanilla, setSkipUnchangedVanilla] = useState<boolean>(true);
   const [exporting, setExporting] = useState(false);
 
   if (!open) return null;
@@ -77,6 +79,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         versionPreset: selectedPreset,
         packIconBlob,
         fixSkyBlendReplace,
+        skipUnchangedVanilla,
       });
       onClose();
     } finally {
@@ -159,6 +162,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 py-1.5 text-zinc-100 focus:outline-none focus:border-pink-500"
             />
           </div>
+
+          <label className="flex items-start gap-2 bg-zinc-950 border border-zinc-800 rounded-md p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipUnchangedVanilla}
+              onChange={(e) => setSkipUnchangedVanilla(e.target.checked)}
+              className="mt-0.5 accent-pink-500"
+            />
+            <span className="text-zinc-300 leading-snug">
+              <strong>Bỏ qua texture Minecraft mặc định chưa sửa:</strong> Tự động so sánh với ảnh gốc Vanilla 26.3 và không đóng gói các file chưa thay đổi để pack nhẹ và sạch.
+            </span>
+          </label>
 
           {hasSkyJsonConfigs && (
             <label className="flex items-start gap-2 bg-sky-950/40 border border-sky-500/40 rounded-md p-3 cursor-pointer">

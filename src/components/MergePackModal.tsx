@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GitMerge, Plus, Trash2, X, CheckSquare, Square } from 'lucide-react';
+import { GitMerge, Plus, Trash2, X, CheckSquare, Square, Search } from 'lucide-react';
 import { ParsedPack, parseResourcePackFile } from '../lib/packLoader';
 
 interface LoadedMergePack {
@@ -24,6 +24,7 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
   onConfirmMerge,
 }) => {
   const [packs, setPacks] = useState<LoadedMergePack[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
 
@@ -164,7 +165,35 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {packs.map((item) => (
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm nhanh tên texture trong các pack (vd: totem, sky, inventory, bed, sword...)"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-9 pr-8 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200 cursor-pointer"
+                    title="Xóa từ khóa"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {packs.map((item) => {
+                const q = searchQuery.trim().toLowerCase();
+                const visibleEntries = q
+                  ? item.pack.entries.filter(
+                      (e) =>
+                        e.name.toLowerCase().includes(q) || e.relPath.toLowerCase().includes(q)
+                    )
+                  : item.pack.entries;
+                return (
                 <div
                   key={item.id}
                   className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden"
@@ -173,10 +202,28 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
                     <div className="font-semibold text-zinc-200 flex items-center gap-2">
                       <span>{item.pack.packName}</span>
                       <span className="text-[11px] font-normal text-pink-400">
-                        ({item.selectedPaths.size}/{item.pack.entries.length} texture đã chọn)
+                        ({item.selectedPaths.size}/{item.pack.entries.length} texture đã chọn
+                        {q ? ` • khớp ${visibleEntries.length}` : ''})
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1 text-[11px]">
+                      {q && visibleEntries.length > 0 && (
+                        <button
+                          onClick={() => {
+                            setPacks((prev) =>
+                              prev.map((p) => {
+                                if (p.id !== item.id) return p;
+                                const next = new Set(p.selectedPaths);
+                                visibleEntries.forEach((e) => next.add(e.path));
+                                return { ...p, selectedPaths: next };
+                              })
+                            );
+                          }}
+                          className="px-2 py-1 rounded bg-pink-600/25 hover:bg-pink-600/40 border border-pink-500/40 text-pink-200 cursor-pointer"
+                        >
+                          + Chọn kết quả tìm ({visibleEntries.length})
+                        </button>
+                      )}
                       <button
                         onClick={() => selectCategoryForPack(item.id, 'all')}
                         className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
@@ -218,39 +265,46 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
                   </div>
 
                   <div className="max-h-44 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                    {item.pack.entries.map((entry) => {
-                      const checked = item.selectedPaths.has(entry.path);
-                      return (
-                        <button
-                          key={entry.path}
-                          onClick={() => togglePath(item.id, entry.path)}
-                          className={`flex items-center gap-2 px-2 py-1.5 rounded text-left transition cursor-pointer ${
-                            checked
-                              ? 'bg-pink-500/15 border border-pink-500/40 text-zinc-100'
-                              : 'hover:bg-zinc-900 text-zinc-500 border border-transparent'
-                          }`}
-                        >
-                          {checked ? (
-                            <CheckSquare className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-                          ) : (
-                            <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-                          )}
-                          <img
-                            src={entry.url}
-                            alt={entry.name}
-                            className="w-6 h-6 rounded checkerboard object-contain shrink-0"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-[11px]">{entry.name}</div>
-                            <div className="truncate text-[10px] text-zinc-500">{entry.relPath}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {visibleEntries.length === 0 ? (
+                      <div className="col-span-full text-center py-4 text-zinc-500 text-[11px]">
+                        Không có texture nào khớp "{searchQuery}".
+                      </div>
+                    ) : (
+                      visibleEntries.map((entry) => {
+                        const checked = item.selectedPaths.has(entry.path);
+                        return (
+                          <button
+                            key={entry.path}
+                            onClick={() => togglePath(item.id, entry.path)}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded text-left transition cursor-pointer ${
+                              checked
+                                ? 'bg-pink-500/15 border border-pink-500/40 text-zinc-100'
+                                : 'hover:bg-zinc-900 text-zinc-500 border border-transparent'
+                            }`}
+                          >
+                            {checked ? (
+                              <CheckSquare className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                            ) : (
+                              <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                            )}
+                            <img
+                              src={entry.url}
+                              alt={entry.name}
+                              className="w-6 h-6 rounded checkerboard object-contain shrink-0"
+                              style={{ imageRendering: 'pixelated' }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-[11px]">{entry.name}</div>
+                              <div className="truncate text-[10px] text-zinc-500">{entry.relPath}</div>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

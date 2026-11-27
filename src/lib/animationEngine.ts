@@ -206,6 +206,27 @@ async function extractFramesFromVideo(
   }
 }
 
+export function getAnimaticaPathsForTarget(targetArchivePath: string): {
+  animPngPath: string;
+  propsPath: string;
+  mcmetaPath: string;
+  relTarget: string;
+} {
+  const safeName = targetArchivePath
+    .replace(/^assets\/minecraft\//, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  const relTarget = targetArchivePath.replace(/^assets\/minecraft\//, '');
+  const animPngRel = `optifine/anim/${safeName}_anim.png`;
+  return {
+    animPngPath: `assets/minecraft/${animPngRel}`,
+    propsPath: `assets/minecraft/optifine/anim/${safeName}_anim.properties`,
+    mcmetaPath: `${targetArchivePath}.mcmeta`,
+    relTarget,
+  };
+}
+
 /**
  * Generates an Animatica / OptiFine Custom Animation pair:
  * - assets/minecraft/optifine/anim/<safeName>_anim.png (vertical strip cropped to opaqueBounds)

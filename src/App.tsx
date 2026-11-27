@@ -40,6 +40,7 @@ import {
   buildAnimaticaGuiAnimation,
   buildAnimationMcmetaJson,
   extractFramesFromMediaFile,
+  getAnimaticaPathsForTarget,
   parseAnimationMcmetaBytes,
 } from './lib/animationEngine';
 import { compositeStampOnSkybox3x2 } from './lib/skyboxProjector';
@@ -393,9 +394,46 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleUndo, handleRedo, workspaceMode]);
 
+  const cleanupAssociatedAnimations = useCallback(
+    async (targetPath: string) => {
+      const { animPngPath, propsPath, mcmetaPath, relTarget } =
+        getAnimaticaPathsForTarget(targetPath);
+      const toDelete = new Set<string>([animPngPath, propsPath, mcmetaPath]);
+
+      const dec = new TextDecoder();
+      for (const [k, bytes] of extraFiles.entries()) {
+        if (k.includes('optifine/anim/') && k.endsWith('.properties')) {
+          const text = dec.decode(bytes);
+          const toMatch = text.match(/^to\s*=\s*(.+)$/m);
+          if (toMatch && toMatch[1].trim().replace(/^\/+/, '') === relTarget) {
+            toDelete.add(k);
+            const fromMatch = text.match(/^from\s*=\s*(.+)$/m);
+            if (fromMatch) {
+              const fromRel = fromMatch[1].trim().replace(/^\/+/, '');
+              toDelete.add(fromRel.startsWith('assets/') ? fromRel : `assets/minecraft/${fromRel}`);
+            }
+          }
+        }
+      }
+
+      const existingToDelete = Array.from(toDelete).filter((k) => extraFiles.has(k));
+      if (existingToDelete.length === 0) return;
+
+      setExtraFiles((prev) => {
+        const next = new Map(prev);
+        for (const k of existingToDelete) next.delete(k);
+        return next;
+      });
+      await Promise.all(existingToDelete.map((k) => cacheDeleteExtraFile(k)));
+    },
+    [extraFiles]
+  );
+
   const handleResetVanilla = async () => {
     if (!selectedEntry) return;
     setRawStampSource(null);
+    setRawStampFrames([]);
+    await cleanupAssociatedAnimations(selectedEntry.path);
     const vanillaUrl = `/templates/${selectedEntry.path}`;
     try {
       const fresh = await loadUrlToRawImage(vanillaUrl);
@@ -413,7 +451,7 @@ export const App: React.FC = () => {
         return next;
       });
       await cacheDeleteTexture(selectedEntry.path);
-      setCacheStatus('Đã khôi phục bản gốc');
+      setCacheStatus('Đã khôi phục bản gốc & xóa ảnh động đi kèm');
     } catch {
       // Custom file not in vanilla templates
     }
@@ -421,12 +459,16 @@ export const App: React.FC = () => {
 
   const handleDeleteModified = async (entry: TextureEntry) => {
     const vanillaUrl = `/templates/${entry.path}`;
-    await cacheDeleteTexture(entry.path);
+    await Promise.all([cacheDeleteTexture(entry.path), cleanupAssociatedAnimations(entry.path)]);
     setModifiedPaths((prev) => {
       const next = new Set(prev);
       next.delete(entry.path);
       return next;
     });
+    if (selectedEntry?.path === entry.path) {
+      setRawStampSource(null);
+      setRawStampFrames([]);
+    }
 
     try {
       const fresh = await loadUrlToRawImage(vanillaUrl);
@@ -795,14 +837,40 @@ export const App: React.FC = () => {
     versionPreset: McVersionPreset;
     packIconBlob: Blob | null;
     fixSkyBlendReplace: boolean;
+    skipUnchangedVanilla: boolean;
   }) => {
+    const isSameRawImage = (a: RawImage, b: RawImage): boolean => {
+      if (a.width !== b.width || a.height !== b.height || a.data.length !== b.data.length) {
+        return false;
+      }
+      for (let i = 0; i < a.data.length; i++) {
+        if (a.data[i] !== b.data[i]) return false;
+      }
+      return true;
+    };
+
     const map = new Map<string, Blob>();
+    let skippedVanillaCount = 0;
     for (const path of modifiedPaths) {
       const hist = histories.get(path);
-      if (hist) {
-        const blob = await rawImageToPngBlob(hist.present);
-        map.set(path, blob);
+      if (!hist) continue;
+      if (opts.skipUnchangedVanilla) {
+        try {
+          const vanillaImg = await loadUrlToRawImage(`/templates/${path}`);
+          if (isSameRawImage(hist.present, vanillaImg)) {
+            skippedVanillaCount++;
+            continue;
+          }
+        } catch {
+          // Not a vanilla template path (e.g. custom skybox/mod texture) -> always include
+        }
       }
+      const blob = await rawImageToPngBlob(hist.present);
+      map.set(path, blob);
+    }
+
+    if (skippedVanillaCount > 0) {
+      setCacheStatus(`Đã xuất pack (bỏ qua ${skippedVanillaCount} texture mặc định chưa sửa)`);
     }
 
     const finalExtra = new Map<string, Uint8Array>(extraFiles);
