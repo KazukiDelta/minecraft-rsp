@@ -61,6 +61,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
   const [rawOriginalBytes, setRawOriginalBytes] = useState<Uint8Array | null>(null);
   const [decodeError, setDecodeError] = useState<string | null>(null);
   const [targetPath, setTargetPath] = useState<string>('assets/minecraft/sounds/random/click.ogg');
+  const [editingExistingPath, setEditingExistingPath] = useState<string | null>(null);
   const [editOpts, setEditOpts] = useState<AudioEditOptions>(DEFAULT_EDIT);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -86,12 +87,14 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
     if (!selectedPath || !fileBytes) {
       setSourceBuffer(null);
       setRawOriginalBytes(null);
+      setEditingExistingPath(null);
       setDecodeError(null);
       setIsDirty(false);
       return;
     }
 
     setTargetPath(selectedPath);
+    setEditingExistingPath(selectedPath);
     setRawOriginalBytes(fileBytes);
     setDecodeError(null);
     setSavedMsg(null);
@@ -291,6 +294,7 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
   const handleUploadAudioFile = async (file: File, preset?: (typeof VANILLA_SOUND_PRESETS)[number]) => {
     setDecodeError(null);
     setSavedMsg(null);
+    setEditingExistingPath(null);
     const bytes = new Uint8Array(await file.arrayBuffer());
     setRawOriginalBytes(bytes);
 
@@ -377,7 +381,9 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
         oggBytes,
         updatedSoundsJson,
         oldPathToDelete:
-          selectedPath && selectedPath !== finalArchivePath ? selectedPath : undefined,
+          editingExistingPath && editingExistingPath !== finalArchivePath
+            ? editingExistingPath
+            : undefined,
       });
 
       setRawOriginalBytes(oggBytes);
