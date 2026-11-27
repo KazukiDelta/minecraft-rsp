@@ -6,6 +6,7 @@ interface LoadedMergePack {
   id: string;
   pack: ParsedPack;
   selectedPaths: Set<string>;
+  activeCategory: string;
 }
 
 interface MergePackModalProps {
@@ -40,6 +41,7 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
           id: `${file.name}-${Date.now()}-${Math.random()}`,
           pack: parsed,
           selectedPaths: new Set(parsed.entries.map((e) => e.path)),
+          activeCategory: 'all',
         });
       }
       setPacks((prev) => [...prev, ...added]);
@@ -75,6 +77,12 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
           ),
         };
       })
+    );
+  };
+
+  const setPackCategory = (packId: string, activeCategory: string) => {
+    setPacks((prev) =>
+      prev.map((item) => (item.id === packId ? { ...item, activeCategory } : item))
     );
   };
 
@@ -119,8 +127,8 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-6xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold text-zinc-100">
             <GitMerge className="w-5 h-5 text-pink-400" />
@@ -187,87 +195,117 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
 
               {packs.map((item) => {
                 const q = searchQuery.trim().toLowerCase();
-                const visibleEntries = q
-                  ? item.pack.entries.filter(
-                      (e) =>
-                        e.name.toLowerCase().includes(q) || e.relPath.toLowerCase().includes(q)
-                    )
-                  : item.pack.entries;
+                const categoryCounts = new Map<string, number>();
+                for (const e of item.pack.entries) {
+                  categoryCounts.set(e.category, (categoryCounts.get(e.category) || 0) + 1);
+                }
+                const categoryTabs = [
+                  { id: 'all', label: 'Tất cả', count: item.pack.entries.length },
+                  { id: 'sky', label: 'Bầu trời', count: categoryCounts.get('sky') || 0 },
+                  { id: 'gui', label: 'GUI', count: categoryCounts.get('gui') || 0 },
+                  { id: 'item', label: 'Item', count: categoryCounts.get('item') || 0 },
+                  { id: 'block', label: 'Block', count: categoryCounts.get('block') || 0 },
+                  { id: 'painting', label: 'Tranh', count: categoryCounts.get('painting') || 0 },
+                  {
+                    id: 'other',
+                    label: 'Khác',
+                    count: item.pack.entries.filter(
+                      (e) => !['sky', 'gui', 'item', 'block', 'painting'].includes(e.category)
+                    ).length,
+                  },
+                ].filter((t) => t.id === 'all' || t.count > 0);
+
+                const visibleEntries = item.pack.entries.filter((e) => {
+                  if (item.activeCategory === 'other') {
+                    if (['sky', 'gui', 'item', 'block', 'painting'].includes(e.category)) return false;
+                  } else if (item.activeCategory !== 'all' && e.category !== item.activeCategory) {
+                    return false;
+                  }
+                  if (q && !e.name.toLowerCase().includes(q) && !e.relPath.toLowerCase().includes(q)) {
+                    return false;
+                  }
+                  return true;
+                });
+
                 return (
                 <div
                   key={item.id}
                   className="bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden"
                 >
-                  <div className="px-3.5 py-2.5 bg-zinc-900/80 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-semibold text-zinc-200 flex items-center gap-2">
-                      <span>{item.pack.packName}</span>
-                      <span className="text-[11px] font-normal text-pink-400">
-                        ({item.selectedPaths.size}/{item.pack.entries.length} texture đã chọn
-                        {q ? ` • khớp ${visibleEntries.length}` : ''})
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1 text-[11px]">
-                      {q && visibleEntries.length > 0 && (
+                  <div className="px-3.5 py-2.5 bg-zinc-900/80 border-b border-zinc-800 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold text-zinc-200 flex items-center gap-2">
+                        <span>{item.pack.packName}</span>
+                        <span className="text-[11px] font-normal text-pink-400">
+                          ({item.selectedPaths.size}/{item.pack.entries.length} texture đã chọn
+                          {q || item.activeCategory !== 'all' ? ` • đang hiện ${visibleEntries.length}` : ''})
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+                        {visibleEntries.length > 0 && (
+                          <button
+                            onClick={() => {
+                              setPacks((prev) =>
+                                prev.map((p) => {
+                                  if (p.id !== item.id) return p;
+                                  const next = new Set(p.selectedPaths);
+                                  visibleEntries.forEach((e) => next.add(e.path));
+                                  return { ...p, selectedPaths: next };
+                                })
+                              );
+                            }}
+                            className="px-2 py-1 rounded bg-pink-600/25 hover:bg-pink-600/40 border border-pink-500/40 text-pink-200 cursor-pointer"
+                          >
+                            + Chọn đang hiện ({visibleEntries.length})
+                          </button>
+                        )}
                         <button
-                          onClick={() => {
-                            setPacks((prev) =>
-                              prev.map((p) => {
-                                if (p.id !== item.id) return p;
-                                const next = new Set(p.selectedPaths);
-                                visibleEntries.forEach((e) => next.add(e.path));
-                                return { ...p, selectedPaths: next };
-                              })
-                            );
-                          }}
-                          className="px-2 py-1 rounded bg-pink-600/25 hover:bg-pink-600/40 border border-pink-500/40 text-pink-200 cursor-pointer"
+                          onClick={() => selectCategoryForPack(item.id, 'all')}
+                          className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
                         >
-                          + Chọn kết quả tìm ({visibleEntries.length})
+                          Chọn tất cả
                         </button>
-                      )}
-                      <button
-                        onClick={() => selectCategoryForPack(item.id, 'all')}
-                        className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
-                      >
-                        Tất cả
-                      </button>
-                      <button
-                        onClick={() => selectCategoryForPack(item.id, 'sky')}
-                        className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-sky-300 cursor-pointer"
-                      >
-                        Chỉ Bầu trời
-                      </button>
-                      <button
-                        onClick={() => selectCategoryForPack(item.id, 'gui')}
-                        className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-pink-300 cursor-pointer"
-                      >
-                        Chỉ GUI
-                      </button>
-                      <button
-                        onClick={() => selectCategoryForPack(item.id, 'item')}
-                        className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-emerald-300 cursor-pointer"
-                      >
-                        Chỉ Item
-                      </button>
-                      <button
-                        onClick={() => selectCategoryForPack(item.id, 'none')}
-                        className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 cursor-pointer"
-                      >
-                        Bỏ chọn
-                      </button>
-                      <button
-                        onClick={() => removePack(item.id)}
-                        className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 ml-1 cursor-pointer"
-                        title="Xóa pack này khỏi danh sách gộp"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          onClick={() => selectCategoryForPack(item.id, 'none')}
+                          className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 cursor-pointer"
+                        >
+                          Bỏ chọn hết
+                        </button>
+                        <button
+                          onClick={() => removePack(item.id)}
+                          className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 ml-1 cursor-pointer"
+                          title="Xóa pack này khỏi danh sách gộp"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Category Filter Tabs */}
+                    <div className="flex flex-wrap gap-1">
+                      {categoryTabs.map((tab) => {
+                        const active = item.activeCategory === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setPackCategory(item.id, tab.id)}
+                            className={`px-2.5 py-1 rounded text-[11px] font-medium transition cursor-pointer ${
+                              active
+                                ? 'bg-pink-600 text-white'
+                                : 'bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                            }`}
+                          >
+                            {tab.label} ({tab.count})
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="max-h-44 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  <div className="max-h-96 overflow-y-auto p-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                     {visibleEntries.length === 0 ? (
-                      <div className="col-span-full text-center py-4 text-zinc-500 text-[11px]">
-                        Không có texture nào khớp "{searchQuery}".
+                      <div className="col-span-full text-center py-6 text-zinc-500 text-xs">
+                        Không có texture nào khớp bộ lọc.
                       </div>
                     ) : (
                       visibleEntries.map((entry) => {
@@ -276,25 +314,25 @@ export const MergePackModal: React.FC<MergePackModalProps> = ({
                           <button
                             key={entry.path}
                             onClick={() => togglePath(item.id, entry.path)}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded text-left transition cursor-pointer ${
+                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left transition cursor-pointer ${
                               checked
                                 ? 'bg-pink-500/15 border border-pink-500/40 text-zinc-100'
                                 : 'hover:bg-zinc-900 text-zinc-500 border border-transparent'
                             }`}
                           >
                             {checked ? (
-                              <CheckSquare className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                              <CheckSquare className="w-4 h-4 text-pink-400 shrink-0" />
                             ) : (
-                              <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                              <Square className="w-4 h-4 text-zinc-600 shrink-0" />
                             )}
                             <img
                               src={entry.url}
                               alt={entry.name}
-                              className="w-6 h-6 rounded checkerboard object-contain shrink-0"
+                              className="w-8 h-8 rounded checkerboard object-contain shrink-0"
                               style={{ imageRendering: 'pixelated' }}
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-[11px]">{entry.name}</div>
+                              <div className="truncate font-medium text-xs">{entry.name}</div>
                               <div className="truncate text-[10px] text-zinc-500">{entry.relPath}</div>
                             </div>
                           </button>
