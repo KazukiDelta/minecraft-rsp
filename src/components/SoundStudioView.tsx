@@ -6,6 +6,7 @@ import {
   Trash2,
   Download,
   Play,
+  Square,
   RotateCcw,
   Music,
   CheckCircle2,
@@ -16,7 +17,6 @@ import {
   AudioEditOptions,
   VANILLA_SOUND_PRESETS,
   archivePathToSoundResource,
-  audioBufferToWavBlob,
   decodeAudioBytes,
   encodeAudioBufferToOgg,
   isOggBytes,
@@ -70,13 +70,15 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
   const [streamFlag, setStreamFlag] = useState(false);
 
   // Preview & saving states
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playProgress, setPlayProgress] = useState(0); // seconds
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playCtxRef = useRef<AudioContext | null>(null);
+  const playSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   // Load selected sound from pack extraFiles
   useEffect(() => {
@@ -131,37 +133,96 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
     };
   }, [selectedPath, fileBytes]);
 
-  // Build instant WAV preview whenever sourceBuffer or editOpts changes
-  useEffect(() => {
-    if (!sourceBuffer) {
-      setPreviewUrl(null);
-      return;
+  const stopPlayback = () => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
-    let active = true;
-    let createdUrl: string | null = null;
-    const timer = setTimeout(async () => {
-      setProcessing(true);
+    if (playSourceRef.current) {
       try {
-        const rendered = await processAudioBuffer(sourceBuffer, editOpts);
-        if (!active) return;
-        const wavBlob = audioBufferToWavBlob(rendered);
-        createdUrl = URL.createObjectURL(wavBlob);
-        setPreviewUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return createdUrl;
-        });
+        playSourceRef.current.stop();
+        playSourceRef.current.disconnect();
       } catch {
-        // ignore transient errors
-      } finally {
-        if (active) setProcessing(false);
+        // ignore
       }
-    }, 120);
+      playSourceRef.current = null;
+    }
+    if (playCtxRef.current) {
+      void playCtxRef.current.close().catch(() => {});
+      playCtxRef.current = null;
+    }
+    setIsPlaying(false);
+    setPlayProgress(0);
+  };
 
-    return () => {
-      active = false;
-      clearTimeout(timer);
+  useEffect(() => {
+    return () => stopPlayback();
+  }, []);
+
+  const startPlayback = async () => {
+    if (!sourceBuffer) return;
+    stopPlayback();
+
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+    playCtxRef.current = ctx;
+
+    const start = Math.max(0, Math.min(editOpts.trimStart, sourceBuffer.duration));
+    const rawEnd =
+      editOpts.trimEnd >= sourceBuffer.duration - 0.015 ? sourceBuffer.duration : editOpts.trimEnd;
+    const end = Math.max(start + 0.02, Math.min(rawEnd, sourceBuffer.duration));
+    const clipDur = Math.max(0.02, end - start);
+    const rate = Math.max(0.25, Math.min(4, editOpts.playbackRate || 1));
+    const outDur = clipDur / rate;
+
+    const src = ctx.createBufferSource();
+    src.buffer = sourceBuffer;
+    src.playbackRate.value = rate;
+
+    const gainNode = ctx.createGain();
+    const now = ctx.currentTime;
+    const targetGain = Math.max(0, editOpts.gain);
+
+    if (editOpts.fadeIn > 0) {
+      const fi = Math.min(editOpts.fadeIn, outDur / 2);
+      gainNode.gain.setValueAtTime(0.0001, now);
+      gainNode.gain.linearRampToValueAtTime(targetGain, now + fi);
+    } else {
+      gainNode.gain.setValueAtTime(targetGain, now);
+    }
+
+    if (editOpts.fadeOut > 0) {
+      const fo = Math.min(editOpts.fadeOut, outDur / 2);
+      gainNode.gain.setValueAtTime(targetGain, now + Math.max(0, outDur - fo));
+      gainNode.gain.linearRampToValueAtTime(0.0001, now + outDur);
+    }
+
+    src.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    playSourceRef.current = src;
+    setIsPlaying(true);
+    setPlayProgress(0);
+
+    const startedAt = performance.now();
+    const tick = () => {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      if (elapsed >= outDur) {
+        stopPlayback();
+        return;
+      }
+      setPlayProgress(elapsed);
+      rafRef.current = requestAnimationFrame(tick);
     };
-  }, [sourceBuffer, editOpts]);
+    rafRef.current = requestAnimationFrame(tick);
+
+    src.onended = () => {
+      stopPlayback();
+    };
+    src.start(0, start, clipDur);
+  };
 
   // Draw waveform with trim region overlay
   useEffect(() => {
@@ -457,11 +518,6 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
               <div className="flex items-center gap-2 text-zinc-200 font-medium">
                 <Music className="w-4 h-4 text-pink-400" />
                 <span>Dạng sóng & Nghe thử</span>
-                {processing && (
-                  <span className="text-[11px] text-zinc-400 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Đang xử lý...
-                  </span>
-                )}
               </div>
               <div className="text-[11px] text-zinc-400 font-mono">
                 Gốc: {sourceBuffer.duration.toFixed(2)}s • {sourceBuffer.sampleRate}Hz •{' '}
@@ -481,20 +537,30 @@ export const SoundStudioView: React.FC<SoundStudioViewProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
-                  if (audioRef.current) {
-                    audioRef.current.currentTime = 0;
-                    void audioRef.current.play();
-                  }
+                  if (isPlaying) stopPlayback();
+                  else void startPlayback();
                 }}
-                disabled={!previewUrl}
-                className="px-3 py-1.5 rounded-lg bg-pink-600/20 hover:bg-pink-600/35 border border-pink-500/40 text-pink-200 text-xs font-medium flex items-center gap-1.5 cursor-pointer shrink-0"
+                className="px-3.5 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 transition"
               >
-                <Play className="w-3.5 h-3.5" />
-                <span>Phát bản đã chỉnh</span>
+                {isPlaying ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                <span>{isPlaying ? 'Dừng' : 'Phát bản đã chỉnh'}</span>
               </button>
-              {previewUrl && (
-                <audio ref={audioRef} src={previewUrl} controls className="flex-1 h-8" />
-              )}
+              <div className="flex-1 flex items-center gap-2.5 text-[11px] font-mono text-zinc-400">
+                <span className="w-12 text-right text-zinc-200">{playProgress.toFixed(1)}s</span>
+                <div className="flex-1 h-2 bg-zinc-950 border border-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-pink-500 transition-[width] duration-75"
+                    style={{
+                      width: `${
+                        effectiveDuration > 0
+                          ? Math.min(100, (playProgress / effectiveDuration) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <span className="w-12 text-emerald-400">{effectiveDuration.toFixed(1)}s</span>
+              </div>
             </div>
           </div>
 
